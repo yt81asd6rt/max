@@ -164,9 +164,8 @@ rollout ncuse_rollout "非常用功能" width:300 height:300
 
     on btn5 pressed  do
     (
-     messageBox"没叼用的插件，有使用问题找模型部杨涛"
+     messageBox"这不重要"
     )
-
     on btn15 pressed do 
     (
         import_houdini_ts()
