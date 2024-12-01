@@ -1,0 +1,1440 @@
+	--该文件保存了kokomi0.33版本之前所用到的函数
+	
+	
+	--标准表面材质转物理材质详情
+	fn set_phmat ph_material st_material =(
+		ph_material.base_color =st_material.base_color	
+		ph_material.base_color_map=st_material.base_color_shader
+		ph_material.base_color_map_on=st_material.base_color_connected
+		
+		--粗糙
+		ph_material.roughness=st_material.specular_roughness
+		ph_material.roughness_map=st_material.specular_roughness_shader 
+		ph_material.roughness_map_on=st_material.specular_roughness_connected
+		
+		--金属度
+		ph_material.metalness=st_material.metalness 
+		ph_material.metalness_map =st_material.metalness_shader
+		ph_material.metalness_map_on =st_material.metalness_connected
+		
+		--ao
+		ph_material.diff_roughness=	st_material.diffuse_roughness
+		ph_material.diff_rough_map=	st_material.diffuse_roughness_shader 
+		ph_material.diff_rough_map_on=st_material.diffuse_roughness_connected
+		
+		--法线
+		if(st_material.normal_shader != undefined)do
+		ph_material.bump_Map = st_material.normal_shader.input_shader
+		ph_material.bump_map_amt = 0.3
+		
+		ph_material.name =st_material.name
+
+		return ph_material
+	)
+	--物理材质转标准材质详情
+	fn set_stmat st_material ph_material =(
+		st_material.diffuse = ph_material.base_color
+		st_material.diffuseMap = ph_material.base_color_map
+		st_material.diffuseMapEnable = ph_material.base_color_map_on 
+		
+		--粗糙
+
+  		st_material.glossiness = (ph_material.roughness*100)
+		st_material.glossinessMap = ph_material.roughness_map
+		st_material.glossinessMapEnable = ph_material.roughness_map_on
+		
+		--金属度
+		st_material.specularLevel = ph_material.metalness * 100
+		st_material.specularLevelMap = ph_material.metalness_map
+		st_material.specularLevelMapEnable = ph_material.metalness_map_on
+		
+		--ao 基础的blinn材质没有ao的存放位置 如果是导给ue的也不太需要ao
+		--st_material.DiffuseRoughness = ph_material.diff_roughness
+		--st_material.DiffuseRoughnessMap = ph_material.diff_rough_map
+		--st_material.DiffuseRoughnessMapEnable = ph_material.diff_rough_map_on
+		
+		--法线
+		st_material.BumpMap = ph_material.bump_map
+        st_material.BumpMapEnable = ph_material.bump_map_on
+        st_material.BumpMapAmount = ph_material.bump_map_amt *100
+
+
+		st_material.name =ph_material.name
+
+		return st_material
+	)
+
+	--该函数会将所选择物体的standarsuface材质转换为物理材质
+	fn phmat_from_stfmat =(
+		for i in selection do 
+		(
+			if classOf i.material == Multimaterial then
+			(
+				nubs = i.material.numsubs
+				for j =1 to  nubs do 
+				(
+					local ph_material = PhysicalMaterial()
+					local st_material = i.material.materialList[j]
+				
+					if classOf st_material != ai_standard_surface
+						do continue
+					--设置材质
+					i.material.materialList[j] = set_phmat ph_material st_material
+				)
+			)
+			else
+			(
+				local ph_material = PhysicalMaterial()
+				local st_material = i.material
+				
+				if classOf st_material != ai_standard_surface
+					do continue
+				
+				i.material = set_phmat ph_material st_material
+			)
+		)
+
+	)
+	
+	--该函数会将所选择物体的物理材质转换为标准材质
+	fn stdmat_from_phymat =(
+		local libmat =#()
+		for i in selection do 
+		(
+			if classOf i.material == Multimaterial then
+			(
+				nubs = i.material.materialList.count
+				for j =1 to  nubs do 
+				(
+					local st_material = Standardmaterial()
+					local ph_material = i.material.materialList[j]
+					local isrename = 0   --检查是否已经转换过材质 避免出现同名的多个材质
+				
+					if classOf ph_material != PhysicalMaterial
+						do continue
+					--检查是否已经存在该同名材质
+					for m in libmat do
+					(
+						if (m.name == ph_material.name)do
+						(
+							i.material.materialList[j] = m
+							isrename = 1
+						)
+					)
+					--设置材质
+					if (isrename == 0)do
+					(
+						local translatedmat = set_stmat st_material ph_material
+						i.material.materialList[j] = translatedmat
+						append libmat translatedmat
+					)
+				)
+			)
+			else
+			(
+				local st_material = Standardmaterial()
+				local ph_material = i.material
+				local isrename = 0   --检查是否已经转换过材质 避免出现同名的多个材质
+
+				if classOf ph_material != PhysicalMaterial
+					do continue
+				for m in libmat do
+				(
+					if (m.name == ph_material.name)do
+					(
+						i.material = m
+						isrename = 1
+					)
+				)
+				--设置材质
+				if (isrename == 0)do
+				(
+					local translatedmat = set_stmat st_material ph_material
+					i.material = translatedmat
+					append libmat translatedmat
+				)
+			)
+		)
+	)
+
+	--该函数会将通道"nmap"的位图缩放到指定大小 并导出文件到nfilename路径 并替换原来的位图
+	fn resize_texture nmap xsize ysize nfilename =
+	(
+	    local tex1 = nmap.bitmap
+		if(xsize==0) do
+		xsize = tex1.width
+		if(ysize==0) do
+		ysize = tex1.height
+	    local textemp = bitmap xsize ysize
+	    local tex2 =copy tex1 textemp
+	    tex2.filename = nfilename
+	    save tex2 
+		print tex2.filename
+	    return tex2.filename
+	)
+	
+	--手动选择文件夹
+	fn selectTextureFolder =
+	(
+		local dialogTitle = "选择贴图文件夹"
+		local initialDir = getDir #image
+	    local result = getSavePath caption:dialogTitle 
+		 
+	    if result != undefined do
+	    (
+	        -- 确保路径以反斜杠结尾
+	        --if not (endsWith result "\\") do
+	        result += "\\"
+			print result
+			result = substituteString result "\\" "/"
+	        return result
+	    )
+	
+	    return undefined
+	)
+	
+	--根据贴图名称对材质球内对应通道进行修改添加
+	fn texAutoFind material filename file =
+	(	
+		if (filename == material.name +"_BaseColor" ) do material.base_color_map = bitmapTexture filename:file
+		if (filename == material.name +"_Normal" ) do material.bump_Map = bitmapTexture filename:file
+		if (filename == material.name +"_ao" ) do material.diff_rough_map = bitmapTexture filename:file
+		if (filename == material.name +"_Ao" ) do material.diff_rough_map = bitmapTexture filename:file
+		if (filename == material.name +"_Roughness" ) do material.roughness_map = bitmapTexture filename:file
+		if (filename == material.name +"_Metallic" ) do material.metalness_map = bitmapTexture filename:file
+		material.bump_map_amt=0.3  --将bump贴图的scale设置为0.3
+	)
+
+	--实例化插件的依赖函数
+	fn objsToProcessAsArray objsToProcess =
+	(
+		-- Check for an array passed (most likely case).
+		if classOf objsToProcess==array then
+		(
+			if objsToProcess.count!=0 then return objsToProcess		-- At least one object in array.
+			else return undefined									-- NO objects in array!
+		)
+	
+		-- Check for '$' passed, but NO objects selected.
+		if objsToProcess==undefined then return undefined
+		
+		-- Check for...
+		--    - ObjectSet value (objects, geometry, lights, cameras, helpers, shapes, system, spacewarps, selection).
+		--    - '$' w/ multiple objects selected.
+		--    - PathName literal.
+		--
+		-- ... and convert to array if true.
+		if classOf objsToProcess==ObjectSet or classOf objsToProcess==PathName then
+		(
+			objsToProcess=objsToProcess as array
+			if objsToProcess.count!=0 then return objsToProcess		-- At least one object in array.
+			else return undefined									-- NO objects in array!
+		)
+	
+		-- Check for single object passed (and convert to array if true).
+		local validSuperClasses=#("camera","GeometryClass","helper","light","shape","SpacewarpObject")
+		local sClassObjsToProcess=(superClassOf objsToProcess) as string
+		for sClass in validSuperClasses where(
+		--			local execStr="superClassOf objsToProcess=="+sClass as string	-- Not sure why this doesn't work(?)
+																				-- It works in the Listener.
+				local execStr="\""+sClassObjsToProcess+"\"==\""+sClass+"\""		-- This is a little more involved, but at
+																				-- least it works!
+				execute execStr
+			)
+		do
+		(
+			return #(objsToProcess)
+		)
+		
+		-- Check for selection set passed (and convert to array if true).
+		if classOf objsToProcess==SelectionSet then
+		(
+			return (for obj in objsToProcess collect obj)
+		)
+		
+		undefined	-- If none of the above checks are true, then 'objsToProcess' was invalid
+					-- (e.g. an integer, float, etc.).
+	)
+	
+	--查找替换字符串 源字符 查找字符 替换字符
+	fn replaceSub str1 str2 str3=
+	(
+		while ((i=findstring str1 str2) != undefined) do
+		(
+			str1 = replace str1 i str2.count str3
+		)
+		return str1
+	)
+	
+	--实例化函数
+	fn instanceEm objsToProcess:(getCurrentSelection()) dbug:dbugIt output:outputIt =
+	(
+		
+		objsToProcess=objsToProcessAsArray objsToProcess
+		if objsToProcess!=undefined AND objsToProcess.count>1 then
+		(
+			local objMaster, obj
+			
+			objMaster=objsToProcess[1]
+			for i=2 to objsToProcess.count do
+			(
+				obj=objsToProcess[i]
+				instanceReplace obj objMaster
+			)
+			select objMaster
+		)
+	)
+
+	--壳材质处理 多维子材质处理方式
+	fn dm_subMultimaterial dmmat = 
+	(
+		nubs = dmmat.mat.originalMaterial.materiallist.count
+		for i = 1 to nubs do (
+		dmmat.mat.originalMaterial.materialList[i]= copy dmmat.mat.originalMaterial.materialList[i]
+		--assignNewName  dmmat.mat.originalMaterial.materialList[i]
+			
+		if dmmat.mat.bakedMaterial.base_color_map != undefined do(
+		dmmat.mat.originalMaterial.materialList[i].diff_rough_map = copy dmmat.mat.bakedMaterial.base_color_map
+			)
+		)
+	)
+
+	-- 函数：根据当前选择的材质获取材质名称
+	fn getSelectedMaterialName sel =
+	(
+	    local material = sel.material
+		--local material1 = meditMaterials[medit.GetActiveMtlSlot()]
+
+	    -- 检查材质球是否存在
+	    --if isValidNode material then
+	    (
+	        -- 检查材质类型
+	        --if material.materialType == #PhysicalMaterial then
+	        (
+	            return material.name
+	        )
+	        --else
+	        (
+	            print ("当前选择的材质不是物理材质.")
+	            return undefined
+	        )
+	    )
+	    --else
+	    (
+	        print ("没有选择材质.")
+	        return undefined
+	    )
+	)
+
+	-- 函数：根据材质名称在文件夹中对贴图进行检索，并将对应贴图贴到材质球的对应通道上
+	-- 参数：
+	--     materialName: 要检索的材质名称
+	--     textureFolderPath: 贴图所在文件夹的路径
+	fn assignTexturesToMaterial textureFolderPath sel =
+	(
+		-- 检查贴图所在文件夹是否存在
+		if (textureFolderPath == undefined ) do
+		(
+			print ("文件夹 " + " 不存在.")
+			return 0
+		)
+
+		textureFolderPath += "*.*"
+		-- 获取所有文件夹中的文件列表
+		local fileList = getfiles 
+		
+		local runmber =0;
+
+		local material = sel.material						-- 获取材质球
+
+
+		if ((classOf material) == PhysicalMaterial) then					-- 检查材质球是否存在并且是物理材质
+		(
+			-- 遍历文件列表
+			for file in fileList do
+			(
+				-- 修改文件路径格式 \ //
+				file = replacesub file "\\" "/"
+
+				-- 获取文件的扩展名
+				 local extension = getFilenameType file
+				-- 检查文件是否是图片文件
+				if matchPattern extension pattern:"*.jpg" pattern2:"*.jpeg" pattern3:"*.png" do
+				(
+					-- 获取文件名（不包含路径和扩展名）
+					local fileName = getFilenameFile file
+					-- 检查文件名是否与材质名称匹配
+					if matchPattern fileName pattern:(material.name + "_*") then
+					(
+						runmber += 1
+
+							-- 根据文件名中的关键字确定贴图类型，并将其贴到对应的通道上
+						texAutoFind material filename file
+
+							-- 添加其他通道的贴图判断语句，例如：ambient、opacity、roughness等等
+
+						print ("已将贴图 " + fileName + " 贴到材质球 " + material.name + " 上.")				
+					)
+				)
+			)
+		)
+		else if((ClassOf material) == MultiMaterial)then
+		(
+			nubs = material.numsubs
+			for i =1 to  nubs do 
+			(
+				--if ((classOf material.materialList[i]) == PhysicalMaterial) then
+					for file in fileList do
+					(
+					-- 修改文件路径格式 \ //
+					file = replacesub file "\\" "/"
+				
+					-- 获取文件的扩展名
+					 local extension = getFilenameType file
+					-- 检查文件是否是图片文件
+					if matchPattern extension pattern:"*.jpg" pattern2:"*.jpeg" pattern3:"*.png" do
+					(
+						-- 获取文件名（不包含路径和扩展名）
+						local fileName = getFilenameFile file
+						-- 检查文件名是否与材质名称匹配
+						if matchPattern fileName pattern:(material.materialList[i].name + "_*") then
+						(
+							runmber += 1
+							
+								-- 根据文件名中的关键字确定贴图类型，并将其贴到对应的通道上
+							texAutoFind material.materialList[i] filename file
+								-- 添加其他通道的贴图判断语句，例如：ambient、opacity、roughness等等
+						
+							print ("已将贴图 " + fileName + " 贴到材质球 " + material.materialList[i].name + " 上.")				
+						)
+					)
+					)
+				--else print "存在非物理材质"
+			)
+		)
+		else 
+		(
+			print("不是物理材质")
+		)
+		return runmber
+	)
+
+	--重新排序多维子材质
+	fn sortMultiSubById selectedObject =
+	(
+		local m=selectedObject.mat
+		if classof m == MultiMaterial then   --make sure the material is MultiMaterial
+		(
+		 local sorted = false  --initialize a local variable as a sort status flag
+		 while not sorted do   --repeat until the flag is set to true
+		 (
+		  sorted = true--set the flag to true in the beginning
+		  --loop though all sub-materials except the last one:
+		  for i = 1 to m.materialIDList.count do
+		  (
+			 local faceSelection = #()
+			 -- 遍历对象的所有面并把 对应id的面加入到选择集中
+			 for faceIndex = 1 to polyOp.getNumFaces selectedObject do
+			 (
+
+					 local faceMatID = polyOp.getFaceMatID selectedObject faceIndex
+					 if faceMatID == m.materialIDList[i] do
+					 (
+						 append faceSelection faceIndex
+					 )
+			 )
+			--设置材质id
+			polyop.setFaceMatID selectedObject faceSelection i
+		 
+		 
+			m.materialIDList[i]=i
+		 )--end for
+		 )--end while
+		)--end if
+	)--end fn
+	
+	-- 函数用于合并重名材质
+	fn mergeDuplicateMaterials multiMat =
+	(
+		 -- 存储已经处理的材质名称
+		 local processedMaterialNames = #()
+		
+		 -- 遍历多维子材质的所有子材质
+		 for i = 1 to multiMat.numsubs do
+		 (
+			 local subMat = multiMat[i]
+		
+			 -- 检查是否是标准材质
+			 --if classOf subMat == StandardMaterial or PhysicalMaterial do
+			 --(
+				 local matName = subMat.name
+		
+				 -- 如果该材质名称已经处理过，则合并材质
+				 if (finditem processedMaterialNames matName)!=0 then
+				 (
+					 -- 找到重名材质的索引
+					 local dupIndex = (finditem processedMaterialNames matName)
+					 -- 获取重名材质
+					 local dupMat = multiMat[dupIndex]
+				
+					 -- 将当前材质的参数复制到重名材质中
+					 dupMat = subMat
+				
+					 --将重名材质的id替换为原材质id
+
+					 local faceSelection = #()
+					  -- 遍历对象的所有面并把 对应id的面加入到选择集中
+					  for faceIndex = 1 to polyOp.getNumFaces selectedObject do
+					  (
+						  local faceMatID = polyOp.getFaceMatID selectedObject faceIndex
+						  if faceMatID == i do
+						  (
+							  append faceSelection faceIndex
+						  )
+					  )
+					 --设置材质id
+					 polyop.setFaceMatID selectedObject faceSelection dupIndex
+				  
+					 submat = defalut
+				 )
+				 else
+				 (
+					 -- 记录该材质名称，以便后续检查
+					 append processedMaterialNames matName
+				 )
+			 --)
+	 )
+ 
+	 -- 清除无效的子材质
+	 --multiMat = multiMat - #{undefined}
+	 sortMultiSubById selectedObject.material
+	)
+	
+
+	
+	fn quick_uvwmap =
+	(
+		local allobj = (for o in selection where (isKindOf o GeometryClass and canConvertTo o Editable_Mesh) collect o)
+
+		if (allobj.count == 1) then
+		(
+			macros.run "Modifiers" "Uvwmap"
+			$.modifiers[#UVW_Map].maptype = 4
+			$.modifiers[#UVW_Map].length = 100
+			$.modifiers[#UVW_Map].width = 100
+			$.modifiers[#UVW_Map].height = 100
+		)
+
+		else 
+			for i in allobj do 
+			(
+				select i
+				modPanel.addModToSelection (Uvwmap())
+				i.modifiers[#UVW_Map].maptype = 4
+				i.modifiers[#UVW_Map].length = 100
+				i.modifiers[#UVW_Map].width = 100
+				i.modifiers[#UVW_Map].height = 100
+			)
+		
+		select allobj#()
+	)
+
+
+rollout quickbakeDialog "quick_bake"
+(
+		radioButtons 'rdo1' "光照贴图大小" enabled:true labels:#("128","256","512","1024","2048") default:1 columns:1 align:#left
+		button 'btn1' "开烘" align:#left
+	
+	
+		--快速烘焙light moap
+		fn Bakelightmap obj size =
+		(
+		--清楚原有烘焙材质
+		obj.iNodeBakeProperties.removeAllBakeElements()
+		
+		--创建烘焙元素并设置
+		be1 = VRayCompleteMap()
+		be1.outputSzX = be1.outputSzY = size
+		be1.fileType = (getDir #image+"\\"+obj.name+"_AO.jpg")
+		be1.fileName = filenameFromPath be1.fileType
+		be1.filterOn = true --enable filtering
+		
+		--添加新的烘焙元素到物体
+		obj.INodeBakeProperties.addBakeElement be1
+		obj.INodeBakeProperties.bakeEnabled = true
+		obj.INodeBakeProperties.bakeChannel = 2
+	
+		select obj
+		
+		render rendertype:#bakeSelected vfb:off progressBar:true outputSize:[size,size]
+		
+		--获取烘焙贴图
+		theMap1 =bitmaptexture filename:be1.fileType
+		theMap1.coordinates.mapChannel =2
+		
+		--设置壳材质
+		bakedMat = Physical_Material base_color_map:theMap1
+		obj.material = Shell_Material originalMaterial:obj.material\
+		bakedMaterial:bakedMat viewportMtlIndex:1 renderMtlIndex:1
+		
+		showTextureMap obj.material obj.material.bakedMaterial true
+		
+		)
+	
+		fn BakeStart =
+		(
+			local bsize = 0
+			if(rdo1.state == 1) do bsize = 128
+			if(rdo1.state == 2) do bsize = 256	
+			if(rdo1.state == 3) do bsize = 512
+			if(rdo1.state == 4) do bsize = 1024
+			if(rdo1.state == 5) do bsize = 2048
+			if(bsize == 0) do
+			(
+				messageBox"大小设置出现错误"
+				return 0
+			)
+	
+			local allobj = #()
+			join allobj selection
+			for i in allobj do 
+			(
+				Bakelightmap i bsize
+			)
+		)
+		
+	
+	
+		on 'btn1' pressed do
+		(
+			if (selection.count==0) then
+				messageBox"没有选择物体"
+			else
+				BakeStart()
+		)
+)
+	
+
+rollout UVTool "UV AutoUnwrap V0.5"
+(
+	spinner mapChannelNo "Map Channel: " range:[0,100,2] type:#integer
+	--spinner customFlattenAngle "Angle: " type:#float range:[0,1000,45.0] scale:5.0 
+	spinner spacing "Spacing: " type:#float range:[0,100,0.007] scale:0.001 
+	--checkbox packed "Pack" checked:false
+	button unwrap "Unwrap"	
+
+
+
+	
+	on unwrap pressed do
+	(
+		-- creates an array from suitable geometry in selection
+		local geoToUV = (for o in selection where (isKindOf o GeometryClass and canConvertTo o Editable_Mesh) collect o)
+		
+		-- checks to see if anything will be unwrapped, and generates error popup if not
+		if geoToUV.count == 0 then messagebox "No suitable geometry selected!"
+		else
+		(
+			clearSelection()	-- clears selection once original selection has been saved as geoToUV array
+
+			for i in 1 to geoToUV.count do	-- loops through array of suitable geometry
+			(
+				select geoToUV[i]	-- selects "i"th piece of geometry
+					
+				-- main UVW block
+				modPanel.addModToSelection (Unwrap_UVW ()) ui:on
+				geoToUV[i].modifiers[#Unwrap_UVW].unwrap.setMapChannel mapChannelNo.value
+				geoToUV[i].modifiers[#Unwrap_UVW].unwrap.move ()
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapList.count = 0
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapIDList.count = 0
+				geoToUV[i].modifiers[#Unwrap_UVW].baseMaterial_list.count = 1
+				geoToUV[i].modifiers[#Unwrap_UVW].baseMaterial_list[1] = undefined
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapList.count = 0
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapIDList.count = 0
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapList.count = 1
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapIDList.count = 1
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapList[1] = Checker ()
+				geoToUV[i].modifiers[#Unwrap_UVW].texMapIDList[1] = -1
+				subobjectLevel = 3
+				actionMan.executeAction 0 "40021"
+				max select all
+				geoToUV[i].modifiers[#Unwrap_UVW].flattenMap 45.0 #([1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]) (spacing.value/2) true 0 true true
+				subobjectLevel = 0
+				
+				
+				-- packed section - still issues with packing code. Also, no longer works within UI
+				--if packed == true do
+				--	(
+				--		selection[i].modifiers[#unwrap_uvw].unwrap.move ()
+				-- 		subobjectLevel = 3
+				-- 		max select all
+				-- 		selection[i].modifiers[#unwrap_uvw].pack 1 0.007 true true true
+				-- 		subobjectLevel = 0
+				--		modPanel.addModToSelection (TurboSmooth ()) ui:on	-- Tests to see if this block works
+				--	)
+				
+				
+				clearSelection()
+			)
+			select geoToUV#() -- selects geometry which has been modified
+		)
+
+	)
+)
+
+
+rollout resize_tool "缩小贴图" width:289 height:164
+(
+		spinner xsize_sp "宽的像素" pos:[14,9] width:64 height:16 range:[1,8192,512] type:#integer scale:1 align:#left
+		spinner ysize_sp "高的像素" pos:[149,9] width:64 height:16 range:[1,8192,512] type:#integer scale:1 align:#left
+		editText out_path "输出路径" pos:[8,34] width:225 height:17 align:#left
+		button 'btn1' "slecet" pos:[238,35] width:39 height:16 align:#left
+		checkbox iso_basecolor "basecolor" pos:[12,61] width:90 height:17 checked:true align:#left
+		checkbox iso_roughness "roughness" pos:[105,63] width:90 height:17 checked:true align:#left
+		checkbox iso_matlic "matlic" pos:[198,62] width:90 height:17 checked:true align:#left
+		checkbox iso_normal "normal" pos:[12,85] width:90 height:17 checked:true align:#left
+		checkbox iso_ao "ao" pos:[105,85] width:90 height:17 checked:true align:#left
+		button 'btn2' "启动" pos:[120,116] width:144 height:38 align:#left
+		radioButtons 'rdo1' "命名规范" pos:[10,109] width:65 height:46 enabled:true labels:#("默认","ue") default:1 columns:1 align:#left
+	
+		on 'btn1' pressed do
+		(
+			local apath=selectTextureFolder()
+			if(apath!=undefined) do out_path.text=apath
+		)
+		
+		on 'btn2' pressed do 
+		(
+			local opath = out_path.text
+			local xsize = xsize_sp.value
+			local ysize = ysize_sp.value
+			-- 检查文件夹是否存在
+			if (opath == undefined ) do
+			(
+				print ("输出路径为空")
+				messageBox "输出路径为空"
+				return 0
+			)
+			-- 获取所有文件夹中的文件列表
+			
+			for i in selection do
+			(
+				local material = i.material			-- 获取材质球
+				if ((classOf material) == PhysicalMaterial) then					-- 检查通道并缩放大小
+				(
+					if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+					(
+						local tex = resize_texture material.base_color_map xsize ysize (opath+material.name+"_BaseColor.jpg")
+						material.base_color_map =bitmapTexture filename:tex
+					)
+					if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+					(
+						local tex = resize_texture material.roughness_map xsize ysize (opath+material.name+"_Roughness.jpg")
+						material.roughness_map =bitmapTexture filename:tex
+					)
+					if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+					(
+						local tex = resize_texture material.metalness_map xsize ysize (opath+material.name+"_Metallic.jpg")
+						material.metalness_map =bitmapTexture filename:tex
+					)
+					if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+					(
+						local tex = resize_texture material.bump_Map xsize ysize (opath+material.name+"_Normal.jpg")
+						material.bump_Map =bitmapTexture filename:tex
+					)
+					if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+					(
+						local tex = resize_texture material.diff_rough_map xsize ysize (opath+material.name+"_Ao.jpg")
+						material.diff_rough_map =bitmapTexture filename:tex
+					)
+				)
+				else if((ClassOf material) == MultiMaterial)then
+				(
+					nubs = material.numsubs
+					for j =1 to  nubs do 
+					(
+						local material = i.material.materialList[j]
+						if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+						(
+							local tex = resize_texture material.base_color_map xsize ysize (opath+material.name+"_BaseColor.jpg")
+							material.base_color_map =bitmapTexture filename:tex
+						)
+						if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+						(
+							local tex = resize_texture material.roughness_map xsize ysize (opath+material.name+"_Roughness.jpg")
+							material.roughness_map =bitmapTexture filename:tex
+						)
+						if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+						(
+							local tex = resize_texture material.metalness_map xsize ysize (opath+material.name+"_Metallic.jpg")
+							material.metalness_map =bitmapTexture filename:tex
+						)
+						if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+						(
+							local tex = resize_texture material.bump_Map xsize ysize (opath+material.name+"_Normal.jpg")
+							material.bump_Map =bitmapTexture filename:tex
+						)
+						if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+						(
+							local tex = resize_texture material.diff_rough_map xsize ysize (opath+material.name+"_Ao.jpg")
+							material.diff_rough_map =bitmapTexture filename:tex
+						)
+					)
+				)
+				else 
+				(
+					print("不是物理材质")
+				)
+			)
+		)
+	
+	
+)
+
+rollout rename_texture_tool "根据材质重名贴图" width:289 height:164
+(
+		editText out_path "输出路径" pos:[8,34] width:225 height:17 align:#left
+		button 'btn1' "slecet" pos:[238,35] width:39 height:16 align:#left
+		checkbox iso_basecolor "basecolor" pos:[12,61] width:90 height:17 checked:true align:#left
+		checkbox iso_roughness "roughness" pos:[105,63] width:90 height:17 checked:true align:#left
+		checkbox iso_matlic "matlic" pos:[198,62] width:90 height:17 checked:true align:#left
+		checkbox iso_normal "normal" pos:[12,85] width:90 height:17 checked:true align:#left
+		checkbox iso_ao "ao" pos:[105,85] width:90 height:17 checked:true align:#left
+		button 'btn2' "启动" pos:[120,116] width:144 height:38 align:#left
+		radioButtons 'rdo1' "命名规范" pos:[10,109] width:65 height:46 enabled:true labels:#("默认","ue") default:1 columns:1 align:#left
+	
+		on 'btn1' pressed do
+		(
+			local apath=selectTextureFolder()
+			if(apath!=undefined) do out_path.text=apath
+		)
+		
+		on 'btn2' pressed do 
+		(
+			local opath = out_path.text
+			--local xsize = xsize_sp.value
+			--local ysize = ysize_sp.value
+			-- 检查文件夹是否存在
+			if (opath == undefined ) do
+			(
+				print ("输出路径为空")
+				messageBox "输出路径为空"
+				return 0
+			)
+			-- 获取所有文件夹中的文件列表
+			
+			-- 默认规范  即在名称后面添加后缀如"_BaseColor"
+			if (rdo1.state == 1) do
+			for i in selection do
+			(
+				local material = i.material			-- 获取材质球
+				if ((classOf material) == PhysicalMaterial) then					-- 检查通道并缩放大小
+				(
+					if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+					(
+						local tex = resize_texture material.base_color_map 0 0 (opath+material.name+"_BaseColor.jpg")
+						material.base_color_map =bitmapTexture filename:tex
+					)
+					if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+					(
+						local tex = resize_texture material.roughness_map  0 0   (opath+material.name+"_Roughness.jpg")
+						material.roughness_map =bitmapTexture filename:tex
+					)
+					if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+					(
+						local tex = resize_texture material.metalness_map  0 0   (opath+material.name+"_Metallic.jpg")
+						material.metalness_map =bitmapTexture filename:tex
+					)
+					if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+					(
+						local tex = resize_texture material.bump_Map  0 0   (opath+material.name+"_Normal.jpg")
+						material.bump_Map =bitmapTexture filename:tex
+					)
+					if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+					(
+						local tex = resize_texture material.diff_rough_map  0 0   (opath+material.name+"_Ao.jpg")
+						material.diff_rough_map =bitmapTexture filename:tex
+					)
+				)
+				else if((ClassOf material) == MultiMaterial)then
+				(
+					nubs = material.materiallist.count
+					for j =1 to  nubs do 
+					(
+						local material = i.material.materialList[j]
+						if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+						(
+							local tex = resize_texture material.base_color_map  0 0   (opath+material.name+"_BaseColor.jpg")
+							material.base_color_map =bitmapTexture filename:tex
+						)
+						if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+						(
+							local tex = resize_texture material.roughness_map  0 0   (opath+material.name+"_Roughness.jpg")
+							material.roughness_map =bitmapTexture filename:tex
+						)
+						if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+						(
+							local tex = resize_texture material.metalness_map   0 0  (opath+material.name+"_Metallic.jpg")
+							material.metalness_map =bitmapTexture filename:tex
+						)
+						if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+						(
+							local tex = resize_texture material.bump_Map   0 0  (opath+material.name+"_Normal.jpg")
+							material.bump_Map =bitmapTexture filename:tex
+						)
+						if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+						(
+							local tex = resize_texture material.diff_rough_map  0 0   (opath+material.name+"_Ao.jpg")
+							material.diff_rough_map =bitmapTexture filename:tex
+						)
+					)
+				)
+				else 
+				(
+					print("不是物理材质")
+				)
+			)
+		
+			-- ue规范  即将M改为T并添加后缀
+			if (rdo1.state == 2) do
+			for i in selection do
+			(
+				local material = i.material			-- 获取材质球
+				if ((classOf material) == PhysicalMaterial) then					-- 检查通道并缩放大小
+				(
+					if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+					(
+						local tex = resize_texture material.base_color_map  0 0   (opath+(replace material.name 1 1 "T")+"_BC.jpg")
+						material.base_color_map =bitmapTexture filename:tex
+					)
+					if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+					(
+						local tex = resize_texture material.roughness_map  0 0   (opath+(replace material.name 1 1 "T")+"_R.jpg")
+						material.roughness_map =bitmapTexture filename:tex
+					)
+					if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+					(
+						local tex = resize_texture material.metalness_map  0 0   (opath+(replace material.name 1 1 "T")+"_M.jpg")
+						material.metalness_map =bitmapTexture filename:tex
+					)
+					if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+					(
+						local tex = resize_texture material.bump_Map  0 0   (opath+(replace material.name 1 1 "T")+"_N.jpg")
+						material.bump_Map =bitmapTexture filename:tex
+					)
+					if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+					(
+						local tex = resize_texture material.diff_rough_map   0 0  (opath+(replace material.name 1 1 "T")+"_AO.jpg")
+						material.diff_rough_map =bitmapTexture filename:tex
+					)
+				)
+				else if((ClassOf material) == MultiMaterial)then
+				(
+					nubs = material.materiallist.count
+					for j =1 to  nubs do 
+					(
+						local material = i.material.materialList[j]
+						if(iso_basecolor.checked == true ) and (material.base_color_map != undefined) do 
+						(
+							local tex = resize_texture material.base_color_map  0 0   (opath+(replace material.name 1 1 "T")+"_BC.jpg")
+							material.base_color_map =bitmapTexture filename:tex
+						)
+						if(iso_roughness.checked == true) and (material.roughness_map != undefined) do 
+						(
+							local tex = resize_texture material.roughness_map  0 0   (opath+(replace material.name 1 1 "T")+"_R.jpg")
+							material.roughness_map =bitmapTexture filename:tex
+						)
+						if(iso_matlic.checked == true) and (material.metalness_map != undefined)do 
+						(
+							local tex = resize_texture material.metalness_map  0 0   (opath+(replace material.name 1 1 "T")+"_M.jpg")
+							material.metalness_map =bitmapTexture filename:tex
+						)
+						if(iso_normal.checked == true)and (material.bump_Map != undefined) do 
+						(
+							local tex = resize_texture material.bump_Map  0 0   (opath+(replace material.name 1 1 "T")+"_N.jpg")
+							material.bump_Map =bitmapTexture filename:tex
+						)
+						if(iso_ao.checked == true)and (material.diff_rough_map != undefined) do 
+						(
+							local tex = resize_texture material.diff_rough_map  0 0   (opath+(replace material.name 1 1 "T")+"_AO.jpg")
+							material.diff_rough_map =bitmapTexture filename:tex
+						)
+					)
+				)
+				else 
+				(
+					print("不是物理材质")
+				)
+			)
+		
+		
+		
+		)
+	
+	
+)
+
+
+fn rebuild_normal =
+(
+    for i in selection do
+    (
+        resetXForm i
+    )
+
+    max modify mode
+    subobjectLevel = 1
+        
+    modPanel.addModToSelection (Edit_Normals ()) ui:on
+    modPanel.addModToSelection (Normalmodifier ()) ui:on flip:on
+    modPanel.addModToSelection (Normalmodifier ()) ui:on flip:on
+    modPanel.addModToSelection (Smooth ()) ui:on
+
+    for i in selection do
+    (
+        i.modifiers[#Edit_Normals].selectBy = 360
+        i.modifiers[#Edit_Normals].EditNormalsMod.Unify ()
+
+        i.modifiers[#Smooth].autosmooth = on
+        i.modifiers[#Smooth].threshold = 46
+        convertToPoly i
+    ) 
+)
+
+fn make_instance =
+(
+    local example=	-- Set =0 to run NO example.
+    case example of
+    (
+    1:	-- Instance selected objects.
+        --    - Select ALL objects that are copies of each other.
+        --    - Run script.
+        --    - Note: The "first" object selected is the 'master object'.  Select it, then ctrl-select the others.
+        --            If all objects are selected at once, the master object cannot be determined.
+    (	
+        format "Instance selected objects.\n"
+        instanceEm()
+    )
+    2:	-- Instance objects whose name starts with "Cylinder".
+        --    - Load a scene with objects that are copies of each other and whose
+        --      name starts with "Cylinder".
+    (	
+        format "Instance objects whose name starts with \"Cylinder\".\n"
+        instanceEm objsToProcess:($'Cylinder*')
+    )
+    )   --国外大佬的插件https://www.youtube.com/watch?v=SiZ9Km1xQjg
+)
+
+fn detach_by_material = 
+(
+    g=selection.count
+    if g==0 do 
+    messagebox "请选择物体！"title:"请选择物体！"
+    if g==1  do
+    (
+      if classof $.material == Multimaterial then
+      (
+        convertTo $ PolyMeshObject
+        obj=$
+        j = obj.material.numsubs
+        currentname=$.name
+        objcollect=#()
+        l=1
+        for i in j to 1 by -1 do
+          (
+            a="newname"+(i) as string
+            obj.EditablePoly.selectByMaterial i
+            facegroup=polyOp.getFaceSelection obj
+            objcollect=polyOp.detachFaces obj facegroup asNode:true  name:a
+          )
+        b=select $'newname*'
+        selection_obj=getCurrentSelection()
+        for k in j to 1 by -1 do
+          (
+            selection_obj[l].material=obj.material.materialList[k]
+            selection_obj[l].name=currentname+"detachobj"+k as string
+            convertTo selection_obj[l] TriMeshGeometry
+            l=l+1
+          )
+        delete obj
+        messagebox "完成！"title:"完成！"
+      )
+      else 
+      (
+       messagebox "请选择一个或多个具有多维材质的物体！！"title:"类型不匹配"
+      )
+    )
+
+    if g>1 do 
+    (
+      selection_obj=getCurrentSelection()
+      d=on
+      for c in 1 to g do
+        (
+        if classof selection_obj[c].material != Multimaterial do
+        d=off
+        )
+       if d==off then
+       messagebox "请选择一个或多个具有多维材质的物体！！"title:"类型不匹配"
+       else
+           (
+         for i in 1 to g do
+           (
+            convertTo selection_obj[i] PolyMeshObject
+            currentname=selection_obj[i].name
+            j = selection_obj[i].material.numsubs
+            objcollect=#()
+            l=1
+            for m in j to 1 by -1 do
+              (
+                a="newname"+(m) as string
+                selection_obj[i].EditablePoly.selectByMaterial m
+                facegroup=polyOp.getFaceSelection selection_obj[i]
+                objcollect=polyOp.detachFaces selection_obj[i] facegroup asNode:true  name:a
+              )
+             b=select $'newname*'
+             selection_obj1=getCurrentSelection()
+             for k in j to 1 by -1 do
+              (
+                selection_obj1[l].material=selection_obj[i].material.materialList[k]
+                selection_obj1[l].name=currentname+"detachobj"+k as string
+                convertTo selection_obj1[l] TriMeshGeometry
+                l=l+1
+              )
+              delete selection_obj[i]
+          
+           )
+        messagebox "完成！"title:"完成！"
+        )
+    )
+)
+
+fn shell_mat_handle =
+(
+    a = for i in selection where classof i.mat  == Shell_Material collect i
+    js = 0
+    c = a.count 
+    for i in a do
+    (
+    js += 1
+    case classof  i.mat.originalMaterial of (
+        (Multimaterial):(
+            
+        dm_subMultimaterial i 
+        
+        )
+        (PhysicalMaterial):(
+        i.mat.originalMaterial= copy i.mat.originalMaterial
+        --assignNewName  i.mat.originalMaterial
+        if i.mat.bakedMaterial.base_color_map != undefined do(
+        i.mat.originalMaterial.diff_rough_map = copy i.mat.bakedMaterial.base_color_map
+    )
+        )
+    )
+    )
+)
+
+fn import_houdini_ts =
+(
+    path1=getOpenFileName caption:"选择变换信息" types:"txt"
+    file = openfile path1
+
+    i = 0
+    while not eof file do
+    (
+        filecontent = ""
+        while not eof file do
+        (
+            filecontent =filecontent + readLine file + "\n"
+            i =i+1
+        )
+    )
+    close file
+
+    str = FilterString filecontent "\n" 
+
+    num = 0
+    oname =#()  --用于存放物体名字的数组
+    trans =#()  --用于存放物体transform信息的数组
+
+
+    for i in str do
+    (
+        num=num+1
+        --查找并删除字符串中的括号
+        local k1 = findString i "("
+        local j = replace i k1 1 ""
+        local k2 = findString j ")"
+        local k = replace j k2 1 ""
+        str[num] = FilterString k ","
+        ta =str[num]
+        local oname1 = ta[2] 
+        local trans1 = matrix3 [ta[3] as float,ta[4] as float,ta[5] as float][ta[7] as float,ta[8] as float,ta[9] as float][ta[11] as float,ta[12] as float,ta[13] as float][ta[15] as float,ta[16] as float,ta[17] as float]
+        append oname oname1
+        append trans trans1
+    )
+
+    for i in 1 to oname.count do
+        for j in 1 to selection.count do
+    (
+        if MatchPattern oname[i] pattern:selection[j].name do
+        (
+            selection[j].transform = trans[i]
+        )
+    )
+)
+
+fn set_rou_to_1 =
+(
+    local rou_val = 1
+    for i in selection do 
+    (
+            if classOf i.material == Multimaterial then
+            (
+                    nubs = i.material.numsubs
+                    for j =1 to  nubs do 
+                    (
+                            i.material.materiallist[j].roughness = rou_val
+                    )
+            )
+            else
+            (
+                    if classof i.material == PhysicalMaterial do
+                    (
+                    i.material.roughness = rou_val
+                    )
+            )
+    )
+)
+
+fn Resort_MultiMat =
+(
+	local ct = 0
+    -- 选择一个包含多维子材质的对象
+	for i in selection do
+	(
+		-- 检查所选对象是否是多维子材质
+		if isValidNode i and classOf i.material == MultiMaterial do
+		(
+			sortMultiSubById i
+			-- 合并多维子材质中的重名材质
+			ct += 1
+		)
+	)
+	
+	if ct !=0 then 
+	messageBox "已排序"
+	else
+	messageBox "请选择至少一个带多维子材质的物体"
+)
+
+fn change_wallpapaer =
+(
+	WP = getOpenFileName caption:"select a image" filename:((pathConfig.removePathLeaf (getSourceFileName()))+"/icon/kokomi.jpg")
+	if WP!=undefined do
+	main_rollout.bmp1.filename = WP
+)
+
+--重置变换，但保留旋转
+fn 	reset_only_scale =
+(
+	for i in selection do 
+	(	
+	 -- 检查是否选择了对象
+	   if isValidNode i then
+	   (
+			-- 保存对象的当前位置和旋转
+			local pos1 = i.pos
+			local rot1 = i.rotation
+
+			i.pos=[0,0,0]
+			i.rotation =(quat 0 0 0 0)
+
+			-- 重置对象的变换矩阵，只保留旋转
+			resetXForm i
+			convertToPoly i
+			-- 恢复保存的旋转
+			i.rotation = rot1
+			i.pos = pos1
+	   )
+	   else
+	   (
+			messageBox "请先选择一个对象。"
+	   )
+		
+	)
+)
+
+--添加位图的子函数
+fn add_bitmap mat filepath = 
+(
+	local bmp1 = bitmap 256 256
+	local cd1 = mat.basecolor  
+	bmp1.filename = filepath + (replace mat.name 1 1 "T")+"_BC.jpg"
+	for px in 0 to bmp1.width - 1 do
+	(
+		for py in 0 to bmp1.height-1 do
+		(
+			setPixels bmp1 [px,py] #(cd1)
+		)
+	)
+	save bmp1 
+	local tex1 = bitmaptexture filename:bmp1.filename
+	mat.base_color_map = tex1
+	close bmp1 
+)
+
+--将颜色信息抓换为位图添加道颜色贴图通道
+fn add_color_to_map =
+(
+
+	local filepath = selectTextureFolder()
+	if filepath == undefined do return 0
+
+	for i in selection do 
+	(
+		if ClassOf i.mat == Multimaterial then 
+		(
+			local nubs = i.material.numsubs
+			for j =1 to  nubs do 
+			(
+				if ClassOf i.mat.materiallist[j] == PhysicalMaterial do 
+				if i.mat.materiallist[j].base_color_map ==undefined do
+				add_bitmap i.mat.materiallist[j] filepath
+			)
+		)
+
+		else 
+		(
+			if ClassOf i.mat == PhysicalMaterial do
+			if i.mat.base_color_map ==undefined do
+			add_bitmap i.mat filepath
+		)
+	)
+
+)
+
+--根据ue规范 该函数可以填充剩余的粗糙法线通道
+fn add_rou_nor_map =
+(
+
+	local filepath = selectTextureFolder()
+	if filepath == undefined do return 0
+
+	local nor_filename = getdir #image +"\icon"+"\T_Standard_N.png"
+	local rou_filename = getdir #image +"\icon"+"\T_Standard_R.png"
+	
+	local new_nor_fn = filepath +"T_Standard_N.png"
+	local new_rou_fn = filepath +"T_Standard_R.png"
+	
+	copyFile nor_filename new_nor_fn
+	copyFile rou_filename new_rou_fn
+	
+	local tex1 = bitmaptexture filename:new_nor_fn
+	local tex2 = bitmaptexture filename:new_rou_fn
+	
+	for i in selection do 
+	(
+		if ClassOf i.mat == Multimaterial then 
+		(
+			local nubs = i.material.numsubs
+			for j =1 to  nubs do 
+			(
+				if ClassOf i.mat.materiallist[j] == PhysicalMaterial do 
+				if i.mat.materiallist[j].bump_Map ==undefined do
+				i.mat.materiallist[j].bump_Map = tex1
+				
+				if ClassOf i.mat.materiallist[j] == PhysicalMaterial do 
+				if i.mat.materiallist[j].roughness_map ==undefined do
+				i.mat.materiallist[j].roughness_map = tex2
+			)
+		)
+
+		else 
+		(
+				if ClassOf i.mat == PhysicalMaterial do 
+				if i.mat.bump_Map ==undefined do
+				i.mat.bump_Map = tex1
+				
+				if ClassOf i.mat == PhysicalMaterial do 
+				if i.mat.roughness_map ==undefined do
+				i.mat.roughness_map = tex2
+		)
+	)
+
+)
+
+fn install_koko =
+(
+	--获取路径
+	path_sc = pathConfig.removePathLeaf(getSourceFileName())
+	path_mac = getdir #userMacroS
+	path_star =  getdir #userStartupScripts
+	path_img = getdir #image
+	path_star_koko =path_star +"\kokomi"
+	path_icon_koko =path_img +"\icon"
+
+	--设置源路径
+	filename_kokomi_source = path_sc + "\kokomi_v0.41.ms"
+	filename_fnkoko_source = path_sc + "/fn_koko.mxs"
+	filename_rokoko_source = path_sc + "/rollout_koko.mxs"
+
+	
+
+	filename_ikokomi1_source =path_sc + "\icon" +"\kokomi.jpg"
+	filename_ikokomi2_source =path_sc + "\icon" +"\koko_icon.png"	
+
+
+	filename_st_nor_source =path_sc + "\icon" + "\T_Standard_N.png"
+	filename_st_rou_source =path_sc + "\icon" + "\T_Standard_R.png"
+
+	--设置目标路径
+	filename_kokomi_targ = path_star_koko + "\kokomi.ms"
+	filename_fnkoko_targ = path_star_koko + "/fn_koko.mxs"
+	filename_rokoko_targ = path_star_koko + "/rollout_koko.mxs"
+
+	
+
+	filename_ikokomi1_targ =path_icon_koko  +"\kokomi.jpg"
+	filename_ikokomi2_targ =(getdir #userIcons)  +"\koko_icon.png"
+	
+
+	filename_st_nor_targ =path_icon_koko + "\T_Standard_N.png"
+	filename_st_rou_targ =path_icon_koko + "\T_Standard_R.png"
+
+	--创建文件夹
+	if(doesDirectoryExist path_star_koko) 
+	then filehave = 1
+	else makedir path_star_koko
+
+	if(doesDirectoryExist path_icon_koko) 
+	then filehave = 1
+	else makedir path_icon_koko
+
+	--删除原文件
+	deleteFile filename_kokomi_targ
+	deleteFile filename_fnkoko_targ
+	deleteFile filename_rokoko_targ
+	
+	deleteFile filename_ikokomi1_targ
+	deleteFile filename_ikokomi2_targ
+
+	deleteFile filename_st_nor_targ
+	deleteFile filename_st_rou_targ
+
+	--复制文件
+	codo1=copyfile filename_kokomi_source filename_kokomi_targ
+	codo2=copyfile filename_fnkoko_source filename_fnkoko_targ
+	codo3=copyfile filename_rokoko_source filename_rokoko_targ
+	
+	codo5=copyfile filename_ikokomi1_source filename_ikokomi1_targ
+	code6=copyfile filename_ikokomi2_source filename_ikokomi2_targ
+
+	code7=copyfile filename_st_nor_source filename_st_nor_targ
+	code8=copyfile filename_st_rou_source filename_st_rou_targ
+
+	print code7 
+
+	--提示结果
+	messageBox "成功安装，重启生效"
+)

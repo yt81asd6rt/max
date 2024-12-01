@@ -1,0 +1,185 @@
+--该文件保存了 子菜单的会话框
+
+include "fn_koko.mxs"
+
+
+rollout cuse_rollout "常用功能" width:300 height:300
+(
+	button 'btn1' "坐标轴归到底中"  width:90 height:45 align:#left
+	button 'btn2' "归到世界坐标中心"  width:90 height:45 enabled:true align:#left
+	button 'btn3' "法线修复"  width:90 height:45 enabled:true align:#left
+	button 'btn4' "实例化"  width:90 height:45 enabled:true align:#left
+    button 'btn13' "按材质炸开"  width:90 height:45 enabled:true align:#left
+	button 'btn5' "物理材质批量设置粗糙度为1"  width:90 height:45  pos:[110,5]
+    button 'btn9' "uv三面映射"  width:90 height:45  pos:[110,55]
+	button 'btn10' "重置变换，保留旋转"  width:90 height:45  pos:[110,105]
+
+	global sel = selection as Array
+
+	on btn1 pressed  do undo on
+		(
+            for obj in selection do 
+            (
+                center =obj.Center
+                center.z=obj.min.z
+                obj.pivot = center
+            )
+		)
+	
+	on btn2 pressed  do undo on
+		selection.position=[0,0,0]
+
+    on btn3 pressed  do 
+        rebuild_normal()
+	
+	on btn4 pressed  do undo on
+        make_instance()
+
+    on btn13 pressed  do undo on	
+        detach_by_material()
+    
+    on btn5 pressed do 
+        set_rou_to_1()
+
+    on btn9 pressed do 
+        quick_uvwmap()
+
+	on btn10 pressed do
+		reset_only_scale()
+
+)
+
+rollout bake_rollout "烘焙相关" width:300 height:300
+(
+    button 'btn1' "uv插件"  width:90 height:45 enabled:true align:#left
+    button 'btn3' "烘焙光照贴图" width:90 height:45 enabled:true align:#left
+	button 'btn2' "壳材质处理"  width:90 height:45 enabled:true align:#left
+
+
+    on btn1 pressed  do
+    (
+     createDialog UVTool width:200
+    )
+
+    on btn2 pressed do 
+        shell_mat_handle()
+
+    on btn3 pressed do
+        createDialog quickbakeDialog
+
+    
+)
+
+rollout texture_rollout "贴图相关" width:300 height:300
+(
+    button 'btn10' "自动贴物理材质"  width:90 height:45 enabled:true align:#left
+	button 'btn1' "缩小贴图"  width:90 height:45 align:#left
+	button 'btn2' "standarsuface材质转物理材质"  width:90 height:45 align:#left
+	button 'btn3' "物理材质转换为标准材质"  width:90 height:45 align:#left
+	button 'btn4' "根据材质重名贴图"  width:90 height:45 align:#left
+	button 'btn5' "重排序多维子材质"  width:90 height:45 pos:[110,05]
+	button 'btn6' "添加颜色通道位图(ue)"  width:90 height:45 pos:[110,55]
+	button 'btn7' "填充粗糙法线通道(ue)"  width:90 height:45 pos:[110,105]
+
+    on btn10 pressed  do undo on
+    (
+        unmber=0  --用于计数贴图数量
+        b = selectTextureFolder()   --获取文件路径
+        for i in selection do
+        (
+            unmber+=assignTexturesToMaterial b i
+        )	
+        print("导入贴图数量:")
+        print unmber
+    )
+
+	on 'btn1' pressed do 
+	(
+		createDialog resize_tool
+	)
+
+	on 'btn2' pressed do 
+	(
+		phmat_from_stfmat()
+	)
+	
+	on 'btn3' pressed do
+	(
+		stdmat_from_phymat()
+	)
+
+	on 'btn4' pressed do 
+	(
+		createDialog rename_texture_tool
+	)
+
+	on 'btn5' pressed do 
+	(
+		Resort_MultiMat()
+	)
+
+	on 'btn6' pressed do 
+	(
+		add_color_to_map()
+	)
+
+	on 'btn7' pressed do
+	(
+		add_rou_nor_map()
+	)
+)
+
+rollout ncuse_rollout "非常用功能" width:300 height:300
+(
+    button 'btn15' "导入houdini\n实例变换信息"  width:90 height:45 enabled:true align:#left
+    button 'btn4' "重置变换\n并保留旋转缩放"  width:90 height:45 enabled:true align:#left
+	button 'btn3' "更换壁纸" width:90 height:45 enabled:true align:#left
+	button 'btn5' "关于"  width:90 height:45 enabled:true align:#left
+	button 'btn10'  "设置插件为自启动"  width:90 height:45 enabled:true align:#left
+		
+	on btn4 pressed  do 
+	(
+		for i in selection do
+		(
+      		 -- 检查是否选择了对象
+      		 if isValidNode i then
+      		 (
+      		    -- 保存对象的当前位置和缩放
+      		    local currenttransform = i.transform
+		
+      		    i.transform=(matrix3 [1,0,0] [0,1,0] [0,0,1] [0,0,0])
+      		    -- 重置对象的变换矩阵，只保留旋转
+      		    resetXForm i
+				convertToPoly i
+
+      		    -- 恢复保存的位置和缩放
+      		    i.transform = currenttransform
+      		 )
+      		 else
+      		 (
+      		     messageBox "请先选择一个对象。"
+      		 )
+		)
+	)
+
+    on btn5 pressed  do
+    (
+     messageBox"没叼用的插件，有使用问题找模型部杨涛"
+    )
+
+    on btn15 pressed do 
+    (
+        import_houdini_ts()
+    )
+
+	on btn3 pressed do 
+	(
+		change_wallpapaer()
+	)
+
+	on btn10 pressed do 
+	(
+		install_koko()
+	)
+)
+
